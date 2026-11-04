@@ -56,11 +56,29 @@ function replacePairs(text, pairs, kind = 'general', suffixes = []) {
   });
 }
 
+function replaceContextualPairs(text, rules) {
+  let result = text;
+  for (const [source, replacement, rawContexts] of rules || []) {
+    if (!source || !replacement || !Array.isArray(rawContexts)) continue;
+    const contexts = rawContexts.filter(Boolean).sort((a, b) => b.length - a.length);
+    for (const context of contexts) {
+      const pattern = new RegExp(
+        `(?<![\\p{L}\\p{N}\\u200c])(${makeFlexiblePattern(context)})([ \\u200c]+)` +
+        `${makeFlexiblePattern(source)}(?![\\p{L}\\p{N}\\u200c])`,
+        'gu'
+      );
+      result = result.replace(pattern, (_, before, separator) => before + separator + replacement);
+    }
+  }
+  return result;
+}
+
 function transform(text, rules) {
   const suffixes = Array.isArray(rules.suffixes) ? rules.suffixes : [];
   let result = replacePairs(text, rules.normalizations || []);
   result = replacePairs(result, rules.prefixes || [], 'prefix');
   result = replacePairs(result, rules.phrases || []);
+  result = replaceContextualPairs(result, rules.contextualVerbs || []);
   result = replacePairs(result, suffixes, 'suffix');
   result = replacePairs(result, rules.words || [], 'word', suffixes);
   return replacePairs(result, rules.verbs || []);

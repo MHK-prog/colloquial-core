@@ -6,16 +6,57 @@ import java.util.regex.Pattern
 object PersianTransformer {
     private const val ZWNJ = '\u200c'
 
-    /** Applies the version 1 rules file in the documented, deterministic order. */
+    /** Applies version 2 rules and preserves context-sensitive homographs. */
     fun transform(text: String, rulesJson: String): String {
         val rules = JSONObject(rulesJson)
         val suffixes = readPairs(rules.optJSONArray("suffixes"))
         var result = replacePairs(text, readPairs(rules.optJSONArray("normalizations")))
         result = replacePairs(result, readPairs(rules.optJSONArray("prefixes")), "prefix")
         result = replacePairs(result, readPairs(rules.optJSONArray("phrases")))
+        result = replaceContextualPairs(result, readContextualPairs(rules.optJSONArray("contextualVerbs")))
         result = replacePairs(result, suffixes, "suffix")
         result = replacePairs(result, readPairs(rules.optJSONArray("words")), "word", suffixes)
         result = replacePairs(result, readPairs(rules.optJSONArray("verbs")))
+        return result
+    }
+
+    private fun readContextualPairs(array: JSONArray?): List<ContextualPair> {
+        if (array == null) return emptyList()
+        val result = ArrayList<ContextualPair>(array.length())
+        for (index in 0 until array.length()) {
+            val rule = array.optJSONArray(index) ?: continue
+            if (rule.length() < 3) continue
+            val source = rule.optString(0)
+            val replacement = rule.optString(1)
+            val contextsArray = rule.optJSONArray(2) ?: continue
+            val contexts = ArrayList<String>(contextsArray.length())
+            for (contextIndex in 0 until contextsArray.length()) {
+                val context = contextsArray.optString(contextIndex).trim()
+                if (context.isNotEmpty()) contexts.add(context)
+            }
+            if (source.isNotEmpty() && replacement.isNotEmpty() && contexts.isNotEmpty()) {
+                result.add(ContextualPair(source, replacement, contexts))
+            }
+        }
+        return result
+    }
+
+    private fun replaceContextualPairs(text: String, rules: List<ContextualPair>): String {
+        var result = text
+        for (rule in rules) {
+            for (context in rule.contexts.sortedByDescending { it.length }) {
+                val regex = "(?<![\\p{L}\\p{N}\\u200c])(${makeFlexiblePattern(context)})([ \\u200c]+)" +
+                    makeFlexiblePattern(rule.source) + "(?![\\p{L}\\p{N}\\u200c])"
+                val matcher = Pattern.compile(regex).matcher(result)
+                val output = StringBuffer()
+                while (matcher.find()) {
+                    val replacement = matcher.group(1) + matcher.group(2) + rule.replacement
+                    matcher.appendReplacement(output, Matcher.quoteReplacement(replacement))
+                }
+                matcher.appendTail(output)
+                result = output.toString()
+            }
+        }
         return result
     }
 
@@ -107,4 +148,10 @@ object PersianTransformer {
 
         return sb.toString()
     }
+
+    private data class ContextualPair(
+        val source: String,
+        val replacement: String,
+        val contexts: List<String>
+    )
 }
