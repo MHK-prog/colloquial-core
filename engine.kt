@@ -66,9 +66,8 @@ object PersianTransformer {
 
         val anchored = (kind == "suffix" || kind == "prefix")
         
-        // در کاتلین برای نام‌گذاری گروه‌ها از (?<name>...) استفاده میشه
         val patterns = sortedSources.mapIndexed { i, src ->
-            "(?<rule$i>${makeFlexiblePattern(src, anchored)})"
+            "(${makeFlexiblePattern(src, anchored)})"
         }
         val combined = patterns.joinToString("|")
 
@@ -96,7 +95,7 @@ object PersianTransformer {
         while (matcher.find()) {
             var replacement = matcher.group(0) // پیش‌فرض: خود متن مچ شده
             for (i in sortedSources.indices) {
-                if (matcher.group("rule$i") != null) {
+                if (matcher.group(i + 1) != null) {
                     replacement = mapping[sortedSources[i]] ?: matcher.group(0)
                     break
                 }
