@@ -1,3 +1,5 @@
+const ZWNJ = '\u200c';
+
 // الگوی منعطف: نیم‌فاصله‌های میانی اختیاری، اولیِ قواعد پسوند/پیشوند اجباری
 function makeFlexiblePattern(source, anchorStart = false) {
   let pattern = '';
@@ -53,3 +55,15 @@ function replacePairs(text, pairs, kind = 'general', suffixes = []) {
     return args[0];
   });
 }
+
+function transform(text, rules) {
+  const suffixes = Array.isArray(rules.suffixes) ? rules.suffixes : [];
+  let result = replacePairs(text, rules.normalizations || []);
+  result = replacePairs(result, rules.prefixes || [], 'prefix');
+  result = replacePairs(result, rules.phrases || []);
+  result = replacePairs(result, suffixes, 'suffix');
+  result = replacePairs(result, rules.words || [], 'word', suffixes);
+  return replacePairs(result, rules.verbs || []);
+}
+
+if (typeof module !== 'undefined') module.exports = { makeFlexiblePattern, replacePairs, transform };
