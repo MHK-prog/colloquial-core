@@ -14,7 +14,7 @@ The Android app uses a Java-compatible implementation bundled with the app and d
 ## Rule order
 
 `normalizations` → `prefixes` → `phrases` → `contextualVerbs` → `suffixes` → `words` → `verbs`.
-Most items are two-element `[source, replacement]` arrays. `contextualVerbs` entries have a third item containing allowed preceding contexts, so ambiguous forms such as `دهم` and `شوم` are only changed in clear verb phrases. The JSON root's numeric `version` identifies the rules schema.
+Most items are two-element `[source, replacement]` arrays. `contextualVerbs` entries have a third item containing allowed preceding contexts, so ambiguous forms such as `دهم` and `شوم` are only changed in clear verb phrases. `verb_stems` stores compact formal/colloquial stem pairs (`f` and `c`); the optional `link` field adds a formal connector such as `ی` for `گو`. The engines expand these into prefixed person forms when rules are first loaded, then use the generated pairs in the final `verbs` stage. Explicit entries in `verbs` take precedence for irregular forms. JavaScript clients should call `parseRules(json)` once; Kotlin clients can call `loadRules(json)` once and reuse its `PreparedRules`. The JSON root's numeric `version` identifies the rules schema.
 
 ## Updating the extension
 

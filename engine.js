@@ -1,4 +1,48 @@
 const ZWNJ = '\u200c';
+const VERB_PREFIXES = ['می‌', 'نمی‌', 'ب'];
+const VERB_ENDINGS = [
+  ['م', 'م'], ['ی', 'ی'], ['د', 'ه'],
+  ['یم', 'یم'], ['ید', 'ین'], ['ند', 'ن']
+];
+const preparedRuleCache = new WeakMap();
+
+// Expand compact verb stems once when rules are loaded, not for each text.
+function prepareRules(rules) {
+  if (!rules || typeof rules !== 'object') throw new TypeError('Rules must be an object.');
+  const cached = preparedRuleCache.get(rules);
+  if (cached) return cached;
+
+  const verbs = Array.isArray(rules.verbs) ? rules.verbs.slice() : [];
+  const seenSources = new Set();
+  for (const pair of verbs) {
+    if (Array.isArray(pair) && pair[0]) seenSources.add(pair[0]);
+  }
+
+  for (const stem of Array.isArray(rules.verb_stems) ? rules.verb_stems : []) {
+    if (!stem || typeof stem.f !== 'string' || typeof stem.c !== 'string' || !stem.f || !stem.c) continue;
+    const formal = stem.f + (typeof stem.link === 'string' ? stem.link : '');
+    for (const prefix of VERB_PREFIXES) {
+      for (const [formalEnding, colloquialEnding] of VERB_ENDINGS) {
+        const source = prefix + formal + formalEnding;
+        const replacement = prefix + stem.c + colloquialEnding;
+        // Explicit rules always win, so irregular verbs remain hand-authored.
+        if (source !== replacement && !seenSources.has(source)) {
+          verbs.push([source, replacement]);
+          seenSources.add(source);
+        }
+      }
+    }
+  }
+
+  const prepared = Object.assign({}, rules, { verbs });
+  preparedRuleCache.set(rules, prepared);
+  preparedRuleCache.set(prepared, prepared);
+  return prepared;
+}
+
+function parseRules(json) {
+  return prepareRules(JSON.parse(json));
+}
 
 // الگوی منعطف: نیم‌فاصله‌های میانی اختیاری، اولیِ قواعد پسوند/پیشوند اجباری
 function makeFlexiblePattern(source, anchorStart = false) {
@@ -73,7 +117,8 @@ function replaceContextualPairs(text, rules) {
   return result;
 }
 
-function transform(text, rules) {
+function transform(text, inputRules) {
+  const rules = prepareRules(inputRules);
   const suffixes = Array.isArray(rules.suffixes) ? rules.suffixes : [];
   let result = replacePairs(text, rules.normalizations || []);
   result = replacePairs(result, rules.prefixes || [], 'prefix');
@@ -84,4 +129,4 @@ function transform(text, rules) {
   return replacePairs(result, rules.verbs || []);
 }
 
-if (typeof module !== 'undefined') module.exports = { makeFlexiblePattern, replacePairs, transform };
+if (typeof module !== 'undefined') module.exports = { makeFlexiblePattern, replacePairs, parseRules, prepareRules, transform };

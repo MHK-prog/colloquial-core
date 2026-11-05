@@ -5,20 +5,83 @@ import java.util.regex.Pattern
 
 object PersianTransformer {
     private const val ZWNJ = '\u200c'
+    private val verbPrefixes = arrayOf("می‌", "نمی‌", "ب")
+    private val verbEndings = arrayOf(
+        "م" to "م", "ی" to "ی", "د" to "ه",
+        "یم" to "یم", "ید" to "ین", "ند" to "ن"
+    )
+    @Volatile private var cachedRulesJson: String? = null
+    @Volatile private var cachedRules: PreparedRules? = null
 
-    /** Applies version 2 rules and preserves context-sensitive homographs. */
-    fun transform(text: String, rulesJson: String): String {
+    /** Parses and prepares rules once, including all forms derived from verb_stems. */
+    @Synchronized
+    fun loadRules(rulesJson: String): PreparedRules {
+        if (cachedRulesJson == rulesJson) cachedRules?.let { return it }
         val rules = JSONObject(rulesJson)
         val suffixes = readPairs(rules.optJSONArray("suffixes"))
-        var result = replacePairs(text, readPairs(rules.optJSONArray("normalizations")))
-        result = replacePairs(result, readPairs(rules.optJSONArray("prefixes")), "prefix")
-        result = replacePairs(result, readPairs(rules.optJSONArray("phrases")))
-        result = replaceContextualPairs(result, readContextualPairs(rules.optJSONArray("contextualVerbs")))
-        result = replacePairs(result, suffixes, "suffix")
-        result = replacePairs(result, readPairs(rules.optJSONArray("words")), "word", suffixes)
-        result = replacePairs(result, readPairs(rules.optJSONArray("verbs")))
+        val prepared = PreparedRules(
+            readPairs(rules.optJSONArray("normalizations")),
+            readPairs(rules.optJSONArray("prefixes")),
+            readPairs(rules.optJSONArray("phrases")),
+            readContextualPairs(rules.optJSONArray("contextualVerbs")),
+            suffixes,
+            readPairs(rules.optJSONArray("words")),
+            expandVerbStems(readPairs(rules.optJSONArray("verbs")), rules.optJSONArray("verb_stems"))
+        )
+        cachedRules = prepared
+        cachedRulesJson = rulesJson
+        return prepared
+    }
+
+    /** Keeps the existing JSON-string API while reusing its prepared rules. */
+    fun transform(text: String, rulesJson: String): String = transform(text, loadRules(rulesJson))
+
+    /** Transforms text using rules prepared by [loadRules]. */
+    fun transform(text: String, rules: PreparedRules): String {
+        var result = replacePairs(text, rules.normalizations)
+        result = replacePairs(result, rules.prefixes, "prefix")
+        result = replacePairs(result, rules.phrases)
+        result = replaceContextualPairs(result, rules.contextualVerbs)
+        result = replacePairs(result, rules.suffixes, "suffix")
+        result = replacePairs(result, rules.words, "word", rules.suffixes)
+        result = replacePairs(result, rules.verbs)
         return result
     }
+
+    private fun expandVerbStems(manual: List<Pair<String, String>>, stems: JSONArray?): List<Pair<String, String>> {
+        val result = ArrayList<Pair<String, String>>(manual.size)
+        result.addAll(manual)
+        val seenSources = HashSet<String>(manual.size * 2)
+        for (pair in manual) seenSources.add(pair.first)
+        if (stems == null) return result
+
+        for (index in 0 until stems.length()) {
+            val stem = stems.optJSONObject(index) ?: continue
+            val formal = stem.optString("f", "")
+            val colloquial = stem.optString("c", "")
+            if (formal.isEmpty() || colloquial.isEmpty()) continue
+            val linkedFormal = formal + stem.optString("link", "")
+            for (prefix in verbPrefixes) {
+                for ((formalEnding, colloquialEnding) in verbEndings) {
+                    val source = prefix + linkedFormal + formalEnding
+                    val replacement = prefix + colloquial + colloquialEnding
+                    // An explicit verb rule takes precedence over generated forms.
+                    if (source != replacement && seenSources.add(source)) result.add(source to replacement)
+                }
+            }
+        }
+        return result
+    }
+
+    class PreparedRules internal constructor(
+        internal val normalizations: List<Pair<String, String>>,
+        internal val prefixes: List<Pair<String, String>>,
+        internal val phrases: List<Pair<String, String>>,
+        internal val contextualVerbs: List<ContextualPair>,
+        internal val suffixes: List<Pair<String, String>>,
+        internal val words: List<Pair<String, String>>,
+        internal val verbs: List<Pair<String, String>>
+    )
 
     private fun readContextualPairs(array: JSONArray?): List<ContextualPair> {
         if (array == null) return emptyList()
@@ -149,7 +212,7 @@ object PersianTransformer {
         return sb.toString()
     }
 
-    private data class ContextualPair(
+    internal data class ContextualPair(
         val source: String,
         val replacement: String,
         val contexts: List<String>
