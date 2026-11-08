@@ -9,7 +9,7 @@ A small Persian text transformer for Android and JavaScript.
 - `engine.js` and `engine.kt` apply literal replacements with the same behavior.
 - `extension.json` is the versioned install manifest used by NovelReader.
 
-There are no regular expressions, contextual rules, generated forms, or special rule types. Single-character pairs run first for character cleanup. For the remaining pairs, matching ignores ordinary spaces and Persian ZWNJ and treats آ and ا as the same search character. The original text outside a matched pair stays unchanged, apart from the single-character cleanup pairs. When sources overlap, the longest normalized source wins, then file order breaks ties. Replacements do not get processed again during the same conversion. Every source can match inside a longer word.
+There are no regular expressions, contextual rules, generated forms, or special rule types. Single-character pairs run first for character cleanup. Within a source pair, ordinary spaces and Persian ZWNJ are interchangeable; an internal separator may also be absent. A separator at the start or end of a source remains a boundary marker and must be present in the text. This keeps suffix rules from matching inside unrelated words. Matching also treats آ and ا as the same character. The original text outside a matched pair stays unchanged, apart from the single-character cleanup pairs. When sources overlap, the longest normalized source wins, then file order breaks ties. Replacements do not get processed again during the same conversion. Every source can match inside a longer word.
 
 The Android app uses a matching Java implementation and downloads the Kotlin source together with the rules. It verifies both files with SHA-256; downloaded source is stored but not executed.
 

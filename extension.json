@@ -2,13 +2,13 @@
   "schema": 1,
   "id": "colloquial-core",
   "name": "Persian Colloquial Converter",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "engineApi": 2,
   "rulesSchema": 3,
   "files": {
     "engine.kt": {
-      "sha256": "b45fbb314e4327341fa5c7309174a7cd263a47703ea16b941aecd39ba1f4ab43",
-      "maxBytes": 3610
+      "sha256": "81ab9f89c323d5ffdaf07a91be6224294e44a7aa8b2c7f1d1b205986b14179f8",
+      "maxBytes": 3820
     },
     "rules.json": {
       "sha256": "b0ebddf7ae10f7dd5c7334129bf0e38aea39bddce5164a946c7a6bf8eb9d4884",

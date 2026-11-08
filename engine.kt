@@ -1,14 +1,15 @@
 import org.json.JSONArray
 
 object PersianTransformer {
-    data class Rule(val source: String, val replacement: String, val matchSource: String = normalizeKey(source))
+    data class Rule(val source: String, val replacement: String, val matchSource: String = matchKey(source))
 
-    private fun normalizeKey(value: String): String {
-        val key = StringBuilder(value.length)
-        for (character in value) {
-            if (character == ' ' || character == '\u200c') continue
-            key.append(if (character == '\u0622') '\u0627' else character)
-        }
+    private fun isSeparator(character: Char): Boolean = character == ' ' || character == '\u200c'
+
+    private fun foldCharacter(character: Char): Char = if (character == '\u0622') '\u0627' else character
+
+    private fun matchKey(source: String): String {
+        val key = StringBuilder(source.length)
+        for (character in source) if (!isSeparator(character)) key.append(foldCharacter(character))
         return key.toString()
     }
 
@@ -31,10 +32,22 @@ object PersianTransformer {
         return rules.sortedByDescending { it.matchSource.length }
     }
 
-    private fun startsWith(text: CharSequence, value: String, offset: Int): Boolean {
-        if (offset + value.length > text.length) return false
-        for (index in value.indices) if (text[offset + index] != value[index]) return false
-        return true
+    private fun matchEnd(text: String, start: Int, source: String): Int {
+        var textIndex = start
+        for (ruleIndex in source.indices) {
+            val expected = source[ruleIndex]
+            if (isSeparator(expected)) {
+                val separatorStart = textIndex
+                while (textIndex < text.length && isSeparator(text[textIndex])) textIndex++
+                val isSourceEdge = ruleIndex == 0 || ruleIndex == source.length - 1
+                if (isSourceEdge && textIndex == separatorStart) return -1
+                continue
+            }
+            if (textIndex >= text.length || isSeparator(text[textIndex])
+                || foldCharacter(text[textIndex]) != foldCharacter(expected)) return -1
+            textIndex++
+        }
+        return textIndex
     }
 
     fun transform(text: String, rulesJson: String): String = transform(text, loadRules(rulesJson))
@@ -45,33 +58,27 @@ object PersianTransformer {
             if (rule.source.length == 1) sourceText = sourceText.replace(rule.source, rule.replacement)
         }
         val textRules = rules.filter { it.source.length != 1 }
-        val normalized = StringBuilder(sourceText.length)
-        val starts = IntArray(sourceText.length)
-        val ends = IntArray(sourceText.length)
-        var normalizedLength = 0
-        for (index in sourceText.indices) {
-            val character = sourceText[index]
-            if (character == ' ' || character == '\u200c') continue
-            normalized.append(if (character == '\u0622') '\u0627' else character)
-            starts[normalizedLength] = index
-            ends[normalizedLength] = index + 1
-            normalizedLength++
-        }
-
         val result = StringBuilder(sourceText.length)
         var originalCursor = 0
         var index = 0
-        while (index < normalizedLength) {
-            val rule = textRules.firstOrNull { startsWith(normalized, it.matchSource, index) }
-            if (rule == null) {
+        while (index < sourceText.length) {
+            var matchedRule: Rule? = null
+            var matchEndIndex = -1
+            for (rule in textRules) {
+                val end = matchEnd(sourceText, index, rule.source)
+                if (end >= 0) {
+                    matchedRule = rule
+                    matchEndIndex = end
+                    break
+                }
+            }
+            if (matchedRule == null) {
                 index++
             } else {
-                val originalStart = starts[index]
-                val originalEnd = ends[index + rule.matchSource.length - 1]
-                result.append(sourceText, originalCursor, originalStart)
-                result.append(rule.replacement)
-                originalCursor = originalEnd
-                index += rule.matchSource.length
+                result.append(sourceText, originalCursor, index)
+                result.append(matchedRule.replacement)
+                originalCursor = matchEndIndex
+                index = matchEndIndex
             }
         }
         result.append(sourceText, originalCursor, sourceText.length)
