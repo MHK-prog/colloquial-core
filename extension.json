@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "colloquial-core",
   "name": "Persian Colloquial Converter",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "apiVersion": 1,
   "description": "Converts formal Persian prose to colloquial text using replacement pairs.",
   "files": {

@@ -1,5 +1,20 @@
-function isSeparator(character) {
-  return character === ' ' || character === '\u200c';
+function isWordCodePoint(codePoint) {
+  return /[\p{L}\p{N}_]/u.test(String.fromCodePoint(codePoint));
+}
+
+function codePointBefore(text, index) {
+  const last = text.charCodeAt(index - 1);
+  if (last >= 0xdc00 && last <= 0xdfff && index > 1) {
+    const first = text.charCodeAt(index - 2);
+    if (first >= 0xd800 && first <= 0xdbff) return ((first - 0xd800) << 10) + last - 0xdc00 + 0x10000;
+  }
+  return last;
+}
+
+function hasWordBoundary(text, index) {
+  const beforeIsWord = index > 0 && isWordCodePoint(codePointBefore(text, index));
+  const afterIsWord = index < text.length && isWordCodePoint(text.codePointAt(index));
+  return beforeIsWord !== afterIsWord;
 }
 
 function foldCharacter(character) {
@@ -10,7 +25,7 @@ function matchKey(source) {
   let key = '';
   for (let index = 0; index < source.length; index++) {
     const character = source[index];
-    if (!isSeparator(character)) key += foldCharacter(character);
+    if (character !== '\u200c') key += foldCharacter(character);
   }
   return key;
 }
@@ -19,15 +34,11 @@ function matchEnd(text, start, source) {
   let textIndex = start;
   for (let ruleIndex = 0; ruleIndex < source.length; ruleIndex++) {
     const expected = source[ruleIndex];
-    if (isSeparator(expected)) {
-      const separatorStart = textIndex;
-      while (textIndex < text.length && isSeparator(text[textIndex])) textIndex++;
-      const isSourceEdge = ruleIndex === 0 || ruleIndex === source.length - 1;
-      if (isSourceEdge && textIndex === separatorStart) return -1;
+    if (expected === '\u200c') {
+      if (text[textIndex] === '\u200c' || text[textIndex] === ' ') textIndex++;
       continue;
     }
-    if (textIndex >= text.length || isSeparator(text[textIndex])
-        || foldCharacter(text[textIndex]) !== foldCharacter(expected)) return -1;
+    if (textIndex >= text.length || foldCharacter(text[textIndex]) !== foldCharacter(expected)) return -1;
     textIndex++;
   }
   return textIndex;
@@ -48,20 +59,16 @@ function parseRules(input) {
 
 function transform(text, inputRules) {
   const rules = parseRules(inputRules);
-  let sourceText = String(text == null ? '' : text);
-  const characterRules = rules.filter(([source]) => source.length === 1);
-  for (const [source, replacement] of characterRules) {
-    sourceText = sourceText.split(source).join(replacement);
-  }
-  const textRules = rules.filter(([source]) => source.length !== 1);
+  const sourceText = String(text == null ? '' : text);
   let result = '';
   let originalCursor = 0;
   for (let index = 0; index < sourceText.length;) {
     let matchedRule = null;
     let matchEndIndex = -1;
-    for (const rule of textRules) {
+    for (const rule of rules) {
+      if (!hasWordBoundary(sourceText, index)) break;
       const end = matchEnd(sourceText, index, rule[0]);
-      if (end >= 0) {
+      if (end >= 0 && hasWordBoundary(sourceText, end)) {
         matchedRule = rule;
         matchEndIndex = end;
         break;
