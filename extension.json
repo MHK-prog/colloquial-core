@@ -2,17 +2,25 @@
   "schema": 1,
   "id": "colloquial-core",
   "name": "Persian Colloquial Converter",
-  "version": "1.0.8",
-  "engineApi": 2,
-  "rulesSchema": 3,
+  "version": "1.0.9",
+  "apiVersion": 1,
+  "description": "Converts formal Persian prose to colloquial text using replacement pairs.",
   "files": {
-    "engine.kt": {
-      "sha256": "81ab9f89c323d5ffdaf07a91be6224294e44a7aa8b2c7f1d1b205986b14179f8",
-      "maxBytes": 3820
-    },
     "rules.json": {
       "sha256": "b0ebddf7ae10f7dd5c7334129bf0e38aea39bddce5164a946c7a6bf8eb9d4884",
       "maxBytes": 10967
     }
-  }
+  },
+  "actions": [
+    {
+      "id": "colloquialize-chapter",
+      "label": "محاوره‌ای‌سازی",
+      "icon": "scan_text",
+      "placement": "chapter_bottom",
+      "capability": "chapter.text.transform.pairs.v1",
+      "dataFile": "rules.json",
+      "confirmTitle": "محاوره‌ای‌سازی متن",
+      "confirmMessage": "متن فعلی این Chapter با نسخهٔ محاوره‌ای جایگزین می‌شود."
+    }
+  ]
 }
